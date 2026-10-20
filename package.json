@@ -7,6 +7,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "vitest run tests/browser/",
+    "test:setup": "playwright-core install ffmpeg",
     "db": "node scripts/db.js",
     "connect": "npx --yes acp-connector",
     "connect:setup": "npx --yes acp-connector setup",
@@ -15,7 +16,8 @@
     "daemon:logs": "npx --yes pm2 logs job-seeker-bridge",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "test:security": "vitest run tests/security/"
   },
   "repository": {
     "type": "git",
@@ -45,13 +47,17 @@
   },
   "homepage": "https://github.com/your-username/job-seeker#readme",
   "dependencies": {
-    "nodemailer": "^6.10.1",
+    "google-auth-library": "^11.3.1",
+    "nodemailer": "^10.1.6",
     "pg": "^8.23.0"
   },
   "devDependencies": {
+    "@playwright/cli": "0.1.22",
     "@types/pg": "^8.20.0",
-    "playwright-cli": "^0.262.0",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

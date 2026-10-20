@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    globalSetup: ['./tests/global-setup.mjs'],
     // Browser tests share a single browser instance, must run sequentially
     fileParallelism: false,
     pool: 'forks',

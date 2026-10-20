@@ -31,10 +31,10 @@ Works best for tech professionals who use LinkedIn as their primary job platform
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 22.12+
 - npx
 - A LinkedIn account
 - A Gmail account
 - A Postgres database (Neon recommended, free tier works)
 
-`npm install` handles all dependencies, including `playwright-cli` and `pg`.
+`npm install` handles all dependencies, including `@playwright/cli` (the `playwright-cli` executable) and `pg`. No global CLI installation is required.

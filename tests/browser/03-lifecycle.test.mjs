@@ -2,7 +2,7 @@
  * Tests del lifecycle: open, ensure, status, close.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { run, cleanup, HEADLESS, TEST_URL_A } from './helpers.mjs';
+import { run, cleanup, HEADLESS, TEST_URL_A, TEST_URL_B } from './helpers.mjs';
 
 describe('lifecycle: open + ensure + close', () => {
   beforeAll(() => cleanup());
@@ -10,7 +10,7 @@ describe('lifecycle: open + ensure + close', () => {
 
   it('open exits 0 and shows browser opened', () => {
     const result = run(['open', TEST_URL_A, HEADLESS]);
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode, result.stderr || result.stdout).toBe(0);
     expect(result.stdout).toContain('Browser');
   });
 
@@ -23,8 +23,8 @@ describe('lifecycle: open + ensure + close', () => {
   it('status shows browser_mode and active_sessions', () => {
     const result = run(['status']);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('browser_mode');
-    expect(result.stdout).toContain('active_sessions');
+    expect(result.stdout).toContain('Browser mode: headless');
+    expect(result.stdout).toContain('Active sessions: default');
   });
 
   it('close exits 0', () => {
@@ -44,9 +44,9 @@ describe('open reuses existing session', () => {
 
   it('open then open again does goto instead of failing', () => {
     const open1 = run(['open', TEST_URL_A, HEADLESS]);
-    expect(open1.exitCode).toBe(0);
+    expect(open1.exitCode, open1.stderr || open1.stdout).toBe(0);
 
-    const open2 = run(['open', 'https://example.org', HEADLESS]);
+    const open2 = run(['open', TEST_URL_B, HEADLESS]);
     expect(open2.exitCode).toBe(0);
     expect(open2.stderr).toContain('already active');
   });

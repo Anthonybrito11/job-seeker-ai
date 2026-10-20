@@ -98,6 +98,11 @@ function isCliPackageDir(dir) {
  * so the package lives at <prefix>/node_modules/@playwright/cli.
  */
 function cliPackageDir() {
+  // Prefer the consuming project's locked dependency, even outside npm scripts.
+  try {
+    const local = path.dirname(require.resolve('@playwright/cli/package.json', { paths: [process.cwd(), __dirname] }));
+    if (isCliPackageDir(local)) return local;
+  } catch {}
   const names = process.platform === 'win32' ? ['playwright-cli.cmd', 'playwright-cli'] : ['playwright-cli'];
   for (const dir of (process.env.PATH || '').split(path.delimiter)) {
     for (const name of names) {
@@ -139,7 +144,7 @@ function coreVersion() {
   const dir = cliPackageDir();
   if (!dir) return null;
   try {
-    const pkg = path.join(dir, 'node_modules', 'playwright-core', 'package.json');
+    const pkg = require.resolve('playwright-core/package.json', { paths: [dir] });
     return JSON.parse(fs.readFileSync(pkg, 'utf8')).version || null;
   } catch { return null; }
 }
@@ -234,7 +239,8 @@ function stringFlags() {
     // playwright-cli bin → realpath → <pkg>/playwright-cli.js → playwright-core help.json
     const cliPkgDir = cliPackageDir();
     if (!cliPkgDir) return _stringFlags;
-    const helpPath = path.join(cliPkgDir, 'node_modules', 'playwright-core', 'lib', 'tools', 'cli-client', 'help.json');
+    const coreDir = path.dirname(require.resolve('playwright-core/package.json', { paths: [cliPkgDir] }));
+    const helpPath = path.join(coreDir, 'lib', 'tools', 'cli-client', 'help.json');
     const help = JSON.parse(fs.readFileSync(helpPath, 'utf8'));
     const strs = new Set();
     for (const c of Object.values(help.commands || {})) {

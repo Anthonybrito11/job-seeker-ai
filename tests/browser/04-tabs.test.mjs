@@ -1,70 +1,45 @@
-/**
- * Tests de gestión de tabs: tab-new, tab-list, tab-select, tab-close, tab-close-all.
- */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { run, cleanup, HEADLESS, TEST_URL_A, TEST_URL_B, TEST_URL_C, TEST_URL_D } from './helpers.mjs';
+import fs from 'node:fs';
+import { run, cleanup, TABS_PATH, HEADLESS, TEST_URL_A, TEST_URL_B, TEST_URL_C, TEST_URL_D } from './helpers.mjs';
 
-describe('tab management', () => {
-  beforeAll(() => {
-    cleanup();
-    run(['open', TEST_URL_A, HEADLESS]);
-  });
+// Named tabs are created by the wrapper; raw tab management uses exec.
+describe('tab management through the current wrapper API', () => {
+  beforeAll(() => { cleanup(); expect(run(['open', TEST_URL_A, HEADLESS]).exitCode).toBe(0); });
   afterAll(() => cleanup());
-
   it('tab-new creates a named tab', () => {
     const result = run(['tab-new', TEST_URL_B, '--name', 'tab-b']);
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("Tab 'tab-b' created");
   });
-
-  it('tab-new creates a second tab', () => {
-    const result = run(['tab-new', TEST_URL_C, '--name', 'tab-c']);
+  it('tab-new creates a second tab', () => { expect(run(['tab-new', TEST_URL_C, '--name', 'tab-c']).exitCode).toBe(0); });
+  it('exec tab-list shows all live tabs', () => {
+    const result = run(['exec', 'tab-list']);
     expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(TEST_URL_B);
+    expect(result.stdout).toContain(TEST_URL_C);
   });
-
-  it('tab-list shows all named tabs', () => {
-    const result = run(['tab-list']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('tab-b');
-    expect(result.stdout).toContain('tab-c');
+  it('the named mapping is valid JSON and records distinct tab indexes', () => {
+    const state = JSON.parse(fs.readFileSync(TABS_PATH, 'utf8'));
+    expect(Object.keys(state.tabs)).toHaveLength(3);
+    expect(state.tabs['tab-b'].index).not.toBe(state.tabs['tab-c'].index);
+    expect(state.tabs['tab-b'].url).toBe(TEST_URL_B);
   });
-
-  it('tab-list --json returns valid JSON with tabs array', () => {
-    const result = run(['tab-list', '--json']);
-    expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout);
-    expect(Array.isArray(parsed.tabs)).toBe(true);
-    expect(parsed.tabs.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it('tab-select selects a tab by name', () => {
-    const result = run(['tab-select', 'tab-b']);
-    expect(result.exitCode).toBe(0);
-  });
-
-  it('tab-select fails for nonexistent tab', () => {
-    const result = run(['tab-select', 'nonexistent']);
+  it('exec tab-select selects a tab by index', () => { expect(run(['exec', 'tab-select', '1']).exitCode).toBe(0); });
+  it('named targeting fails for a nonexistent tab', () => {
+    const result = run(['exec', 'eval', 'location.href', '--tab', 'nonexistent']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('not found');
   });
-
-  it('tab-close closes a tab by name', () => {
-    const result = run(['tab-close', 'tab-c']);
+  it('exec tab-close closes a tab by index', () => { expect(run(['exec', 'tab-close', '2']).exitCode).toBe(0); });
+  it('closed tab is removed from the live list', () => { expect(run(['exec', 'tab-list']).stdout).not.toContain(TEST_URL_C); });
+  it('closing extra tabs in descending order leaves one tab', () => {
+    expect(run(['tab-new', TEST_URL_D, '--name', 'tab-d']).exitCode).toBe(0);
+    expect(run(['exec', 'eval', 'location.href', '--tab', 'tab-d']).stdout).toContain(TEST_URL_D);
+    expect(run(['exec', 'tab-close', '2']).exitCode).toBe(0);
+    expect(run(['exec', 'tab-close', '1']).exitCode).toBe(0);
+    const result = run(['exec', 'tab-list']);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Tab 'tab-c' closed");
-  });
-
-  it('closed tab is removed from list', () => {
-    const result = run(['tab-list']);
-    expect(result.stdout).not.toContain('tab-c');
-  });
-
-  it('tab-close-all leaves only one tab', () => {
-    run(['tab-new', TEST_URL_D, '--name', 'tab-d']);
-    const result = run(['tab-close-all']);
-    expect(result.exitCode).toBe(0);
-
-    const listJson = JSON.parse(run(['tab-list', '--json']).stdout);
-    expect(listJson.tabs.length).toBe(1);
+    expect(result.stdout).not.toContain(TEST_URL_D);
+    expect(result.stdout).not.toContain(TEST_URL_B);
   });
 });

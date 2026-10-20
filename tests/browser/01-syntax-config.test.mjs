@@ -3,62 +3,36 @@
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
-import { execSync } from 'child_process';
-import { run, CONFIG_PATH, REPO_ROOT } from './helpers.mjs';
+import path from 'node:path';
+
+import { run, script, cleanup, CONFIG_PATH, REPO_ROOT, BROWSER_JS } from './helpers.mjs';
 
 describe('browser.js syntax and help', () => {
-  it('has valid JavaScript syntax', () => {
-    const result = execSync('node -c scripts/browser.js', { cwd: REPO_ROOT, encoding: 'utf8' });
-    expect(result).toBeDefined();
+  it('has valid JavaScript syntax at the current skill path', () => {
+    expect(script(['--check', BROWSER_JS]).status).toBe(0);
   });
-
   it('linkedin-warm-sourcing.js has valid JavaScript syntax', () => {
-    const result = execSync('node -c scripts/linkedin-warm-sourcing.js', { cwd: REPO_ROOT, encoding: 'utf8' });
-    expect(result).toBeDefined();
+    expect(script(['--check', path.join(REPO_ROOT, 'scripts/linkedin-warm-sourcing.js')]).status).toBe(0);
   });
-
   it('linkedin-warm-sourcing.js exits 2 without --company', () => {
-    try {
-      execSync('node scripts/linkedin-warm-sourcing.js', { cwd: REPO_ROOT, encoding: 'utf8', stdio: 'pipe' });
-      throw new Error('Expected exit code 2 but process exited successfully');
-    } catch (err) {
-      expect(err.status).toBe(2);
-    }
+    expect(script([path.join(REPO_ROOT, 'scripts/linkedin-warm-sourcing.js')]).status).toBe(2);
   });
-
-  it('linkedin-warm-sourcing.js exits 2 when browser not running', () => {
-    // Ensure no browser session is active
-    try { execSync('node scripts/browser.js close-all --force', { cwd: REPO_ROOT, encoding: 'utf8', stdio: 'pipe', timeout: 10000 }); } catch {}
-    try {
-      execSync('node scripts/linkedin-warm-sourcing.js --company "Test"', { cwd: REPO_ROOT, encoding: 'utf8', stdio: 'pipe', timeout: 15000 });
-      throw new Error('Expected exit code 2 but process exited successfully');
-    } catch (err) {
-      expect(err.status).toBe(2);
-      expect((err.stderr || err.stdout || '').toString()).toContain('not active');
-    }
+  it('linkedin-warm-sourcing.js exits 2 when isolated browser is not running', () => {
+    cleanup();
+    const result = script([path.join(REPO_ROOT, 'scripts/linkedin-warm-sourcing.js'), '--company', 'Synthetic Company']);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('not active');
   });
-
   it('linkedin-warm-sourcing.js --help exits 0', () => {
-    const result = execSync('node scripts/linkedin-warm-sourcing.js --help', { cwd: REPO_ROOT, encoding: 'utf8' });
-    expect(result).toContain('--company');
-    expect(result).toContain('--role');
-    expect(result).toContain('--json');
+    const result = script([path.join(REPO_ROOT, 'scripts/linkedin-warm-sourcing.js'), '--help']);
+    expect(result.status).toBe(0);
+    for (const flag of ['--company', '--role', '--json']) expect(result.stdout).toContain(flag);
   });
-
-  it('--help exits 0', () => {
+  it('--help exits 0', () => { expect(run(['--help']).exitCode).toBe(0); });
+  it('help describes the current wrapper API', () => {
     const result = run(['--help']);
-    expect(result.exitCode).toBe(0);
-  });
-
-  it('help mentions all commands', () => {
-    const result = run(['--help']);
-    const commands = ['open', 'attach', 'detach', 'goto', 'close', 'close-all', 'ensure',
-      'exec', 'tab-new', 'tab-select', 'tab-close', 'tab-close-all', 'tab-list',
-      'save-state', 'load-state', 'dashboard', 'trace-start', 'trace-stop',
-      'video-start', 'video-stop', 'console', 'requests', 'request',
-      'list', 'status'];
-    for (const cmd of commands) {
-      expect(result.stdout).toContain(cmd);
+    for (const command of ['open', 'goto', 'close', 'close-all', 'ensure', 'exec', 'tab-new', 'save-state', 'load-state', 'status', 'batch', 'observe', 'wait-dom', 'wait-for']) {
+      expect(result.stdout).toContain(command);
     }
   });
 });
@@ -71,13 +45,14 @@ describe('config file', () => {
   it('is valid JSON with expected fields', () => {
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
     expect(config.browser).toBeDefined();
-    expect(config.browser.channel).toBeDefined();
+    expect(config.browser.launchOptions.executablePath).toBeDefined();
+    expect(config.browser.launchOptions.headless).toBe(true);
     expect(config.timeouts).toBeDefined();
     expect(typeof config.timeouts.action).toBe('number');
     expect(typeof config.timeouts.navigation).toBe('number');
     expect(config.network).toBeDefined();
-    expect(Array.isArray(config.network.blockedOrigins)).toBe(true);
-    expect(config.network.blockedOrigins.length).toBeGreaterThan(0);
+    expect(Array.isArray(config.network.allowedOrigins)).toBe(true);
+    expect(config.network.allowedOrigins.length).toBeGreaterThan(0);
     expect(config.console).toBeDefined();
     expect(config.console.level).toBeDefined();
   });

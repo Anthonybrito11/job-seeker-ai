@@ -7,6 +7,8 @@
 .devin/
 .env
 node_modules/
+dist/
+.netlify/
 orca/
 assets/*.html
 docs/.vitepress/dist/

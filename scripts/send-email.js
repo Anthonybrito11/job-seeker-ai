@@ -42,8 +42,6 @@ function loadEnv() {
   return env;
 }
 
-const env = loadEnv();
-
 function parseArgs() {
   const args = process.argv.slice(2);
   const out = {};
@@ -59,6 +57,8 @@ function parseArgs() {
 }
 
 function sendEmail({ to, subject, body, from, html = false, attach = [] }) {
+  // Importing this module must not read credentials or create a transport.
+  const env = loadEnv();
   const host = env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(env.SMTP_PORT || '465', 10);
   const secure = env.SMTP_SECURE !== 'false';

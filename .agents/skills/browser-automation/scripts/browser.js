@@ -129,8 +129,7 @@ function checkPlaywrightCli() {
   } catch {
     fail(`playwright-cli is not installed or not in PATH.\n` +
       `Install it with:\n` +
-      `  npm install -g @playwright/cli@latest\n` +
-      `  playwright-cli install-browser`);
+      `  npm ci`);
   }
 }
 
@@ -718,6 +717,9 @@ function usage() {
   node ${scriptPath} status
     Show browser_mode config + active sessions + tab mapping.
 
+  node ${scriptPath} ensure
+    Verify that the current browser session is active and healthy.
+
   node ${scriptPath} guides
     List all documented sites and whether they have a guide.md.
 
@@ -1117,11 +1119,18 @@ async function main() {
       return;
     }
 
+    case 'ensure': {
+      const session = getHealthySession(null);
+      if (!session) fail('No healthy session. Run open first.');
+      console.log(`[browser] Session '${session}' is active and healthy.`);
+      return;
+    }
+
     case 'save-state': {
       const session = getHealthySession(null);
       if (!session) fail(`No active session. Run 'open' first.`);
       const filename = options.filename || AUTH_STATE_PATH;
-      runPwCli([`-s=${session}`, 'save-state', `--filename=${filename}`]);
+      runPwCli([`-s=${session}`, 'state-save', filename]);
       console.log(`[browser] Auth state saved to ${filename}`);
       return;
     }
@@ -1130,7 +1139,8 @@ async function main() {
       const session = getHealthySession(null);
       if (!session) fail(`No active session. Run 'open' first.`);
       const filename = options.filename || AUTH_STATE_PATH;
-      runPwCli([`-s=${session}`, 'load-state', `--filename=${filename}`]);
+      if (!fs.existsSync(filename)) fail(`State file not found: ${filename}`);
+      runPwCli([`-s=${session}`, 'state-load', filename]);
       console.log(`[browser] Auth state loaded from ${filename}`);
       return;
     }

@@ -3,20 +3,20 @@
  * no hay una sesión activa del browser.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { run, cleanup } from './helpers.mjs';
+import { run, cleanup, TEST_URL_A } from './helpers.mjs';
 
 describe('fail-fast without session', () => {
   beforeAll(() => cleanup());
 
   it('goto fails with clear error', () => {
-    const result = run(['goto', 'https://example.com']);
+    const result = run(['goto', TEST_URL_A]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('No active session');
   });
 
-  it('close fails with clear error', () => {
+  it('close is idempotent and reports no active session', () => {
     const result = run(['close']);
-    expect(result.exitCode).toBe(1);
+    expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain('No active session');
   });
 
@@ -33,7 +33,7 @@ describe('fail-fast without session', () => {
   });
 
   it('tab-list fails without session', () => {
-    const result = run(['tab-list']);
+    const result = run(['exec', 'tab-list']);
     expect(result.exitCode).toBe(1);
   });
 
@@ -48,27 +48,27 @@ describe('fail-fast without session', () => {
   });
 
   it('tab-new fails without session', () => {
-    const result = run(['tab-new', 'https://example.com', '--name', 'test']);
+    const result = run(['tab-new', TEST_URL_A, '--name', 'test']);
     expect(result.exitCode).toBe(1);
   });
 
   it('tab-select fails without session', () => {
-    const result = run(['tab-select', 'test']);
+    const result = run(['exec', 'tab-select', '0']);
     expect(result.exitCode).toBe(1);
   });
 
   it('trace-start fails without session', () => {
-    const result = run(['trace-start']);
+    const result = run(['exec', 'tracing-start']);
     expect(result.exitCode).toBe(1);
   });
 
   it('console fails without session', () => {
-    const result = run(['console', 'error']);
+    const result = run(['exec', 'console', 'error']);
     expect(result.exitCode).toBe(1);
   });
 
   it('requests fails without session', () => {
-    const result = run(['requests']);
+    const result = run(['exec', 'requests']);
     expect(result.exitCode).toBe(1);
   });
 });

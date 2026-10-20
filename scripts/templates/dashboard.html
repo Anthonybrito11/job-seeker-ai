@@ -1087,14 +1087,14 @@ function renderMessages(messages) {
   }
   return messages.map(m => {
     const chClass = m.channel === 'gmail' ? 'ch-gmail' : m.channel === 'linkedin' ? 'ch-linkedin' : 'ch-platform';
-    const stClass = m.status ? 'st-' + m.status : 'st-pending';
+    const stClass = ['pending','approved','sent','ignored','draft'].includes(m.status) ? 'st-' + m.status : 'st-pending';
     const chInitial = CHANNEL_ICONS[m.channel] || 'M';
     const color = channelColor(m.channel);
     const senderInitials = initials(m.sender, chInitial);
     const exactDate = m.received_at ? new Date(m.received_at).toLocaleString() : '';
     const borderColor = color;
     return `<div class="message-card" style="border-left-color:${borderColor}" title="${exactDate}">
-      <div class="message-avatar" style="background:${color}">${senderInitials}</div>
+      <div class="message-avatar" style="background:${color}">${escapeHtml(senderInitials)}</div>
       <div class="message-body">
         <div class="message-top">
           <span class="message-sender">${escapeHtml(m.sender || '')}</span>
@@ -1131,7 +1131,7 @@ function renderTargets(targets) {
     const pct = total > 0 ? (count / total) * 100 : 0;
     return `<div class="target-group">
       <div class="target-group-header">
-        <span class="target-group-title">${labels[key] || key}</span>
+        <span class="target-group-title">${escapeHtml(labels[key] || key)}</span>
         <span class="target-group-count">${count}</span>
       </div>
       <div class="target-progress-bg">
@@ -1188,6 +1188,7 @@ function renderApp(data) {
         </div>
         <div class="header-right">
           <div class="auto-refresh"><div class="pulse"></div> Auto-refresh 30s</div>
+          ${document.querySelector('meta[name="dashboard-auth"]') ? '<form method="post" action="/auth/logout"><button class="header-btn" type="submit">Cerrar sesión</button></form>' : ''}
           <span class="header-meta">Last activity: ${data.lastApplication ? formatDate(data.lastApplication) : 'none'}</span>
           <button class="header-btn theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
             <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -1234,11 +1235,25 @@ function renderApp(data) {
   `;
 }
 
+let dashboardLoaded = false;
 async function loadData() {
   const app = document.getElementById('app');
   try {
-    const res = await fetch('/api/data');
+    const res = await fetch('/api/data', { cache: 'no-store', credentials: 'same-origin' });
+    if (res.status === 401) {
+      dashboardLoaded = false;
+      const authError = new URLSearchParams(location.search).get('auth');
+      const notice = authError === 'denied' ? 'Esta cuenta no tiene acceso. Usa tu cuenta de Google autorizada.' : authError === 'error' ? 'No se pudo completar el acceso. Vuelve a intentarlo.' : 'Inicia sesión con tu cuenta de Google autorizada para consultar tus postulaciones.';
+      app.innerHTML = `<div class="error-banner" style="max-width:480px;margin:12vh auto;display:block;padding:28px">
+        <h1 style="font-size:24px;margin-bottom:12px">Tu panel de empleo</h1>
+        <p style="margin-bottom:20px">${notice}</p>
+        <a class="header-btn" href="/auth/login">Continuar con Google</a>
+      </div>`;
+      return;
+    }
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No se pudo cargar el panel.');
+    dashboardLoaded = true;
     app.innerHTML = renderApp(data);
   } catch (err) {
     app.innerHTML = `<div class="error-banner">
@@ -1249,7 +1264,7 @@ async function loadData() {
 }
 
 loadData();
-setInterval(loadData, 30000);
+setInterval(() => { if (dashboardLoaded && document.visibilityState === 'visible') loadData(); }, 30000);
 
 /* ── Theme toggle ── */
 function toggleTheme() {

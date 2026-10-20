@@ -109,13 +109,13 @@ Works best for tech professionals who use LinkedIn as their primary job platform
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 22.12+
 - npx
 - A LinkedIn account
 - A Gmail account
 - A Postgres database (Neon recommended, free tier works)
 
-`npm install` handles all dependencies, including `playwright-cli` and `pg`.
+`npm install` handles all dependencies, including `@playwright/cli` (the `playwright-cli` executable) and `pg`. The browser wrapper resolves the local, locked CLI without a global installation.
 
 ## Quick Start
 
@@ -151,6 +151,11 @@ After onboarding, try:
 - **Node:** `pg` for DB access, `playwright-cli` for browser automation
 - **Skills:** Markdown in `.agents/skills/`. Universal, not tied to one agent
 - **Tests:** Vitest for browser wrapper and script tests
+
+Tests use local fixtures and temporary profiles. On Windows, an installed Edge
+or Chrome executable can be used without accessing its personal profile.
+Run `npm run test:setup` once for Playwright's small video runtime, then `npm test`.
+See [Windows test setup and results](WINDOWS-TESTING.md) for isolation details and prerequisites.
 
 ## Structure
 

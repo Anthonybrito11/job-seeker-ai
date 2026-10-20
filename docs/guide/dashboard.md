@@ -2,6 +2,8 @@
 
 A local web dashboard that visualizes your job application pipeline in real time. The agent opens it at the end of each round so you can review the results visually.
 
+To consult the panel privately from a phone or another device, see [Private dashboard on Netlify](./dashboard-netlify.md).
+
 ![Dashboard](/dashboard.png)
 
 ## Launch

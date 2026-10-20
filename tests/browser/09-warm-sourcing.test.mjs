@@ -10,18 +10,16 @@
  * This test uses playwright-cli via the browser.js wrapper (Gold Rule 10)
  * to open the fixture, run the EXTRACT_JS eval, and verify the output.
  *
- * Architecture: Uses openAndEvalJSON which chains `open` + `eval` in a single
- * shell command to prevent session death between navigation and evaluation
- * (same pattern used by all production scripts). A python3 HTTP server serves
- * the fixture (file:// protocol is blocked by playwright).
+ * Uses openAndEvalJSON with argument arrays, an isolated temporary workspace
+ * and the shared Node fixture server on an ephemeral loopback port.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createRequire } from 'module';
-import { spawn, spawnSync } from 'child_process';
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { cleanup, REPO_ROOT } from './helpers.mjs';
+import { cleanup, TEST_WORKSPACE, TEST_ENV, ORIGIN, REPO_ROOT } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -29,7 +27,7 @@ const __dirname = path.dirname(__filename);
 const FIXTURE_DIR = path.resolve(__dirname, '..', 'fixtures');
 const FIXTURE_FILE = 'linkedin-people-search.html';
 const FIXTURE_PATH = path.join(FIXTURE_DIR, FIXTURE_FILE);
-const FIXTURE_PORT = 8799;
+
 
 // Import the module to get EXTRACT_JS, deriveRecruiterCategory, mapResultsToContacts.
 // The script guards main() with require.main === module, so requiring is safe.
@@ -37,42 +35,15 @@ const { EXTRACT_JS, deriveRecruiterCategory, mapResultsToContacts } =
   require(path.join(REPO_ROOT, 'scripts', 'linkedin-warm-sourcing.js'));
 
 // Import openAndEvalJSON from browser-helpers for reliable eval execution.
-// This chains open + eval in a single shell command, preventing session death
-// between navigation and evaluation (same pattern used by all production scripts).
-const { openAndEvalJSON } = require(path.join(REPO_ROOT, 'lib', 'browser-helpers'));
-
-let httpServer;
-
-function startFixtureServer() {
-  return new Promise((resolve, reject) => {
-    // Use python3 -m http.server (Node's http.createServer causes navigation
-    // timeouts with playwright due to missing keep-alive headers).
-    httpServer = spawn('python3', ['-m', 'http.server', String(FIXTURE_PORT), '--directory', FIXTURE_DIR], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: REPO_ROOT,
-    });
-    httpServer.stderr.on('data', (data) => {
-      const msg = data.toString();
-      if (msg.includes('Serving HTTP')) {
-        // Server is ready
-        setTimeout(resolve, 200);
-      }
-    });
-    httpServer.on('error', reject);
-    // Fallback timeout in case stderr message is different
-    setTimeout(resolve, 2000);
-  });
-}
+// The production helper preserves multiline eval code without shell quoting.
+const { openAndEvalJSON, gotoAndEvalJSON } = require(path.join(REPO_ROOT, 'lib', 'browser-helpers'));
 
 function extractFromFixture() {
-  // Use openAndEvalJSON (open + eval in one chained command) to prevent
-  // session death between navigation and evaluation.
-  // Each call opens a fresh browser session, evals, and the browser stays
-  // open for subsequent calls (open detects existing session and does goto).
+  // Existing sessions are reused inside this test file's temporary workspace.
   return openAndEvalJSON(
-    `http://localhost:${FIXTURE_PORT}/${FIXTURE_FILE}`,
+    `${ORIGIN}/${FIXTURE_FILE}`,
     EXTRACT_JS,
-    { timeout: 60000, headed: false }
+    { timeout: 60000, headed: false, cwd: TEST_WORKSPACE, env: TEST_ENV }
   );
 }
 
@@ -105,15 +76,11 @@ describe('linkedin-warm-sourcing.js: EXTRACT_JS empirical validation via playwri
     expect(fs.existsSync(FIXTURE_PATH)).toBe(true);
     // Clean up any stale browser sessions
     cleanup();
-    // Start local HTTP server for the fixture (file:// protocol is blocked by playwright)
-    await startFixtureServer();
+    // The global setup owns the local-only Node fixture server.
   }, 30000);
 
   afterAll(() => {
     cleanup();
-    if (httpServer) {
-      httpServer.kill('SIGTERM');
-    }
   });
 
   it('EXTRACT_JS is a non-empty string', () => {
@@ -172,6 +139,26 @@ describe('linkedin-warm-sourcing.js: EXTRACT_JS empirical validation via playwri
     const nonProfile = results.find((r) => !r.vanity || !r.name);
     expect(nonProfile).toBeUndefined();
   }, 90000);
+
+  it('preserves multiline JavaScript, quotes and Unicode without a shell', () => {
+    const synthetic = { text: `O'Neil: "mañana" $HOME & | < >`, rows: ['one', 'two'] };
+    const code = `() => {\n const value = ${JSON.stringify(synthetic)};\n return JSON.stringify(value);\n}`;
+    expect(openAndEvalJSON(`${ORIGIN}/${FIXTURE_FILE}`, code, {
+      cwd: TEST_WORKSPACE, env: TEST_ENV,
+    })).toEqual(synthetic);
+  });
+
+  it('gotoAndEvalJSON executes against the same isolated workspace', () => {
+    expect(gotoAndEvalJSON(`${ORIGIN}/${FIXTURE_FILE}`, '() => JSON.stringify({ title: document.title })', {
+      cwd: TEST_WORKSPACE, env: TEST_ENV,
+    })).toEqual({ title: 'LinkedIn People Search Fixture' });
+  });
+
+  it('preserves a JSON scalar string without requiring double encoding', () => {
+    expect(gotoAndEvalJSON(`${ORIGIN}/${FIXTURE_FILE}`, "() => 'synthetic scalar'", {
+      cwd: TEST_WORKSPACE, env: TEST_ENV,
+    })).toBe('synthetic scalar');
+  });
 });
 
 describe('linkedin-warm-sourcing.js: mapResultsToContacts (unit)', () => {
